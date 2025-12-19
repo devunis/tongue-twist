@@ -7,6 +7,16 @@ import os
 from typing import List, Dict, Optional
 from openai import OpenAI
 import dotenv
+from config import (
+    WHISPER_MODEL,
+    GPT_MODEL,
+    TTS_MODEL,
+    TTS_VOICE,
+    DEFAULT_TEMPERATURE,
+    DEFAULT_MAX_TOKENS,
+    INPUT_AUDIO_FILE,
+    OUTPUT_AUDIO_FILE
+)
 
 # 환경 변수 로드
 dotenv.load_dotenv()
@@ -26,17 +36,17 @@ def stt() -> str:
         Exception: 파일 처리 또는 API 호출 실패 시
     """
     try:
-        with open("input.mp3", "rb") as f:
+        with open(INPUT_AUDIO_FILE, "rb") as f:
             transcriptions = client.audio.transcriptions.create(
                 file=f,
-                model="whisper-1",
+                model=WHISPER_MODEL,
                 language="ko"
             )
             text = transcriptions.text
         
         # 임시 파일 삭제
-        if os.path.exists("input.mp3"):
-            os.remove("input.mp3")
+        if os.path.exists(INPUT_AUDIO_FILE):
+            os.remove(INPUT_AUDIO_FILE)
             
         return text
     except FileNotFoundError:
@@ -44,8 +54,8 @@ def stt() -> str:
     except Exception as e:
         return f"오류: 음성 인식 중 문제가 발생했습니다. ({str(e)})"
 
-def ask_gpt(query: List[Dict[str, str]], temperature: float = 0.5, 
-            max_tokens: int = 1024, sys_inst: str = "") -> str:
+def ask_gpt(query: List[Dict[str, str]], temperature: float = DEFAULT_TEMPERATURE, 
+            max_tokens: int = DEFAULT_MAX_TOKENS, sys_inst: str = "") -> str:
     """
     GPT 모델에 질문하고 응답을 받음
     
@@ -74,7 +84,7 @@ def ask_gpt(query: List[Dict[str, str]], temperature: float = 0.5,
         messages.extend(query)
         
         res = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=GPT_MODEL,
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens
@@ -96,24 +106,22 @@ def tts(text: str) -> str:
     Raises:
         Exception: 파일 처리 또는 API 호출 실패 시
     """
-    filename = "output.wav"
-    
     try:
         with client.audio.speech.with_streaming_response.create(
-            model='tts-1',
-            voice='coral',
+            model=TTS_MODEL,
+            voice=TTS_VOICE,
             input=text
         ) as response:
-            response.stream_to_file(filename)
+            response.stream_to_file(OUTPUT_AUDIO_FILE)
         
-        with open(filename, "rb") as f:
+        with open(OUTPUT_AUDIO_FILE, "rb") as f:
             audio = f.read()
             base64_encoded = base64.b64encode(audio).decode("utf-8")
             audio_tag = f'<source src="data:audio/wav;base64,{base64_encoded}" type="audio/wav" />'
         
         # 임시 파일 삭제
-        if os.path.exists(filename):
-            os.remove(filename)
+        if os.path.exists(OUTPUT_AUDIO_FILE):
+            os.remove(OUTPUT_AUDIO_FILE)
             
         return audio_tag
     except Exception as e:
